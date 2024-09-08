@@ -1,118 +1,102 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useState, useEffect } from 'react';
+import { View, Text, Button, FlatList, StyleSheet } from 'react-native';
+import axios from 'axios';
+import TrackPlayer from 'react-native-track-player';
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
-
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-type SectionProps = PropsWithChildren<{
+// Define SongType interface
+interface SongType {
+  id: number;
   title: string;
-}>;
-
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
+  artist: string;
+  album?: string;  // Opcional
 }
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+const App = () => {
+  // Declare state with correct types
+  const [songs, setSongs] = useState<SongType[]>([]);
+  const [currentSong, setCurrentSong] = useState<SongType | null>(null);
+  const [theme, setTheme] = useState({ primary: '#000', background: '#fff' });
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  useEffect(() => {
+    // Fetch songs on mount
+    fetchSongs();
+  }, []);
+
+  const fetchSongs = async (sortBy = '') => {
+    try {
+      const response = await axios.get<SongType[]>(`http://10.0.2.2:5000/songs?sort_by=${sortBy}`);
+      setSongs(response.data);
+    } catch (error) {
+      console.error('Error fetching songs:', error);
+    }
+  };
+
+  const playSong = async (song: SongType) => {
+    setCurrentSong(song);
+    await TrackPlayer.setupPlayer();
+    await TrackPlayer.add({
+      id: song.id.toString(),
+      url: `path/to/${song.title}.mp3`,
+      title: song.title,
+      artist: song.artist,
+      album: song.album || '',
+    });
+    await TrackPlayer.play();
+
+    // Track play count and hours listened
+    await axios.post('http://localhost:5000/track_hours', {
+      song_id: song.id,
+      hours: 0.03, // Example, track minutes
+    });
+  };
+
+  const changeTheme = (newPrimaryColor: string) => {
+    setTheme({ primary: newPrimaryColor, background: '#fff' });
   };
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Text style={[styles.header, { color: theme.primary }]}>My Music App</Text>
+
+      {/* List of Songs */}
+      <FlatList
+        data={songs}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.songContainer}>
+            <Text style={styles.songTitle}>{item.title}</Text>
+            <Button title="Play" onPress={() => playSong(item)} />
+          </View>
+        )}
       />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+
+      {/* Theme changer */}
+      <View style={styles.themeChanger}>
+        <Button title="Change Theme" onPress={() => changeTheme('#ff6347')} />
+      </View>
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
+    padding: 20,
   },
-  sectionTitle: {
+  header: {
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
-  sectionDescription: {
-    marginTop: 8,
+  songContainer: {
+    marginVertical: 10,
+  },
+  songTitle: {
     fontSize: 18,
-    fontWeight: '400',
   },
-  highlight: {
-    fontWeight: '700',
+  themeChanger: {
+    marginTop: 20,
   },
 });
 
 export default App;
+
